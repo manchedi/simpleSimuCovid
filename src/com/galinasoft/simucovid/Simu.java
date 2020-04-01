@@ -7,21 +7,24 @@ public class Simu {
 	final static int WORK = 2;
 	final static int FAMILY = 1;
 	final static int SCHOOL = 3;
+	final static int FRIEND = 4;
 	
 	final int SIZE= 1000;
 	final int FAMILYSIZE = 4; 
-	final int N_ENTERPRISE = SIZE/20;
-	final int N_SCHOOL = SIZE/200;
+	final int N_ENTERPRISE = SIZE/20; // 20 workers per enterprise
+	final int N_SCHOOL = SIZE/200;  // 200 students per school
+	final int N_FRIENDGROUP = SIZE/4;   // 10 friends per individual
 	final double FamilyTransmissionRate = 0.05;
 	final double EnterpriseTransmissionRate = 0.01;
 	final double SchoolTransmissionRate = 0.02;
+	final double FriendsTransmissionRate = 0.05;
 	final double DeathRateYoung = 0.0002;
 	final double DeathRateAdult = 0.0012;
 	final double DeathRateSenior = 0.0035;
 	final static int DayOfFirstSign = 5;
 	final int RECOVERYTIME = 21;
-	final int FirstDayOfContainment =5;
-	final int DurationOfContainment = 45;
+	final int FirstDayOfContainment = 4;
+	final int DurationOfContainment = 30;
 	final int FirstDayOfTotalContainment = 140;
 	final int DurationOfTotalContainment = 10;
 	
@@ -29,6 +32,7 @@ public class Simu {
 	Family[] families;
 	Enterprise[] enterprises;
 	School[] schools;
+	Friend[] friends;
 	
 	Random rnd = new Random(42);
 	
@@ -37,6 +41,7 @@ public class Simu {
 		this.families = new Family[SIZE/FAMILYSIZE];
 		this.enterprises = new Enterprise[N_ENTERPRISE];
 		this.schools = new School[N_SCHOOL];
+		this.friends = new Friend[N_FRIENDGROUP];
 	}
 	
 	public static void main(String[] args) {
@@ -45,6 +50,7 @@ public class Simu {
 		simu.createFamilies();
 		simu.createEnterprises();
 		simu.createSchools();
+		simu.createFriends();
 		simu.fillGroup();
 		simu.initFirstCases();
 		
@@ -66,6 +72,11 @@ public class Simu {
 			schools[s] = new School();
 		}
 	}
+	public void createFriends() {
+		for(int f=0 ; f< friends.length ; f++) {
+			friends[f] = new Friend();
+		}
+	}
 	
 	public void fillGroup() {
 		
@@ -74,9 +85,10 @@ public class Simu {
 			int school = rnd.nextInt(N_SCHOOL);
 			int work = rnd.nextInt(N_ENTERPRISE);
 			int family = rnd.nextInt((int)(SIZE/FAMILYSIZE));
-
-			group[i] = new Individu(age, school, work, family);
+			int friendGroup = rnd.nextInt(N_FRIENDGROUP);
+			group[i] = new Individu(age, school, work, family,friendGroup);
 			families[family].add(group[i]);
+			friends[friendGroup].add(group[i]);
 			if (group[i].isStudent()) {
 				schools[school].add(group[i]);
 			} else if (group[i].isWorking()) {
@@ -101,32 +113,39 @@ public class Simu {
 	}
 	
 	public void run(int ndays) {
-		System.out.println("\"day\",\"infected\",\"immunized\",\"dead\",\"byFamily\",\"byWork\",\"bySchool\"");
-		// pour chaque jour
+		System.out.println("\"day\",\"infected\",\"immunized\",\"dead\",\"InfectByFamily\",\"InfectByWork\",\"InfectBySchool\",\"InfectByFriend\",\"newCases\",\"totalInfected\"");
+		int totalInfecteds = 0;
+		
+		// every day
 		for (int day=0 ; day<ndays ; day++) {
-			// pour chaque individu
+			// every person
 			int infecteds = 0;
 			int immunizeds = 0;
 			int deads = 0;
-			int howmanyFamily = 0;
-			int howmanyWork = 0;
-			int howmanySchool = 0;
+			int infectedByFamily = 0;
+			int infectedByWork = 0;
+			int infectedBySchool = 0;
+			int infectedByFriend = 0;
+			
+			int newCases = 0;
 			for (int i=0; i < group.length; i++) {
 				Individu ind = group[i];
-				aday(day, ind);	
+				newCases += newCasesOfADay(day, ind);	
 				// healing
-				if (ind.infected && day > ind.dayOfContamination+RECOVERYTIME) {
+				if (ind.infected && day > ind.dayOfContamination + RECOVERYTIME) {
 					ind.infected = false;
 					ind.immunized = true;
 				}
 				if (ind.isContagious()) {
 					infecteds++;
 					switch (ind.howInfected) {
-					case WORK: howmanyWork++;
+					case WORK: infectedByWork++;
 						break;
-					case FAMILY: howmanyFamily++;
+					case FAMILY: infectedByFamily++;
 						break;
-					case SCHOOL: howmanySchool++;
+					case SCHOOL: infectedBySchool++;
+						break;						
+					case FRIEND: infectedByFriend++;
 						break;						
 					}
 					
@@ -134,10 +153,9 @@ public class Simu {
 				if (ind.alive && ind.immunized) immunizeds++;
 				if (!ind.alive) deads++;
 			}
-			
+			totalInfecteds += newCases;
 			//System.out.println("day "+ day + " infecteds: " + infecteds + " immunized: " + immunizeds + " deads: " + deads );
-			System.out.println(day + "," + infecteds + "," + immunizeds + "," + deads + "," + howmanyFamily + "," + howmanyWork + "," + howmanySchool );
-
+			System.out.println(day + "," + infecteds + "," + immunizeds + "," + deads + "," + infectedByFamily + "," + infectedByWork + "," + infectedBySchool + "," + infectedByFriend + "," + newCases + ',' + totalInfecteds );
 		}
 		
 		// result how many infected
@@ -156,7 +174,8 @@ public class Simu {
 	}
 	
 	
-	public void aday(int day, Individu ind) {
+	public int newCasesOfADay(int day, Individu ind) {
+		int newCases = 0;
 		int dayOfWeek = day % 7;
 
 		if (dayOfWeek < 5) {
@@ -174,6 +193,7 @@ public class Simu {
 										colleague.dayOfContamination  = day;
 										colleague.infected = true;
 										colleague.howInfected = WORK;
+										newCases++;
 									}
 								}
 								
@@ -190,6 +210,7 @@ public class Simu {
 										student.dayOfContamination  = day;
 										student.infected = true;
 										student.howInfected = SCHOOL;
+										newCases++;
 									}
 								}
 							}
@@ -207,6 +228,7 @@ public class Simu {
 								member.dayOfContamination  = day;
 								member.infected = true;
 								member.howInfected = FAMILY;
+								newCases++;
 							}
 						}
 					}
@@ -226,8 +248,26 @@ public class Simu {
 								member.dayOfContamination = day;
 								member.infected = true;
 								member.howInfected = FAMILY;
+								newCases++;
 							}
 						}
+					}
+				}
+				//week-end Friends
+				if (!isContainment(day)) {
+					for (Individu friend : friends[ind.friendGroup].relations) {
+						if (!friend.equals(ind)) {
+							double x = rnd.nextDouble();
+							if (x < FriendsTransmissionRate) {
+								if (friend.isInfectable()) {
+									friend.dayOfContamination = day;
+									friend.infected = true;
+									friend.howInfected = FRIEND;
+									newCases++;
+								}
+							}
+						}
+						
 					}
 				}
 			}
@@ -254,6 +294,7 @@ public class Simu {
 				}
 			}
 		}
+		return newCases;
 	}
 	
 	private boolean isContainment(int day) {
