@@ -4,24 +4,25 @@ import java.util.Random;
 
 public class Simu {
 	// how is infected
-	final static int WORK = 2;
-	final static int FAMILY = 1;
-	final static int SCHOOL = 3;
-	final static int FRIEND = 4;
 	
-	final int SIZE= 1000;
-	final int FAMILYSIZE = 4; 
-	final int N_ENTERPRISE = SIZE/20; // 20 workers per enterprise
-	final int N_SCHOOL = SIZE/200;  // 200 students per school
-	final int N_FRIENDGROUP = SIZE/4;   // 10 friends per individual
+	final int SIZE= 1000_000;
+	final int FAMILYSIZE = 4; // 4 person per family
+	final int ENTERPRISESIZE = 20; // 20 workers per enterprise
+	final int N_ENTERPRISE = SIZE/ENTERPRISESIZE; 
+	final int SCHOOLSIZE = 200; // 200 students per school
+	final int N_SCHOOL = SIZE/SCHOOLSIZE; 
+	final int FRIENDGROUPSIZE = 4; // 4 friends per individual
+	final int N_FRIENDGROUP = SIZE/FRIENDGROUPSIZE;   
 	final double FamilyTransmissionRate = 0.05;
 	final double EnterpriseTransmissionRate = 0.01;
 	final double SchoolTransmissionRate = 0.02;
 	final double FriendsTransmissionRate = 0.05;
+	final int MAXAGE = 80;  // use this parameter to tune % of senior (MAXAGE - 65)/ (MAXAGE)
 	final double DeathRateYoung = 0.0002;
 	final double DeathRateAdult = 0.0012;
-	final double DeathRateSenior = 0.0035;
+	final double DeathRateSenior = 0.0039;
 	final static int DayOfFirstSign = 5;
+	final int DayOfFirstSevereSymptom = 9;
 	final int RECOVERYTIME = 21;
 	final int FirstDayOfContainment = 4;
 	final int DurationOfContainment = 30;
@@ -59,29 +60,29 @@ public class Simu {
 	
 	public void createFamilies() {
 		for(int f=0 ; f< families.length ; f++) {
-			families[f] = new Family();
+			families[f] = new Family(10); // default capacity of ArrayList
 		}
 	}
 	public void createEnterprises() {
 		for(int e=0 ; e< enterprises.length ; e++) {
-			enterprises[e] = new Enterprise();
+			enterprises[e] = new Enterprise(ENTERPRISESIZE*2);
 		}
 	}
 	public void createSchools() {
 		for(int s=0 ; s< schools.length ; s++) {
-			schools[s] = new School();
+			schools[s] = new School(SCHOOLSIZE*2);
 		}
 	}
 	public void createFriends() {
 		for(int f=0 ; f< friends.length ; f++) {
-			friends[f] = new Friend();
+			friends[f] = new Friend(10); // default capacity of ArrayList
 		}
 	}
 	
 	public void fillGroup() {
 		
 		for (int i=0; i<group.length ; i++) {
-			int age = rnd.nextInt(80) + 1;
+			int age = rnd.nextInt(MAXAGE) + 1;
 			int school = rnd.nextInt(N_SCHOOL);
 			int work = rnd.nextInt(N_ENTERPRISE);
 			int family = rnd.nextInt((int)(SIZE/FAMILYSIZE));
@@ -100,16 +101,16 @@ public class Simu {
 	private void initFirstCases() {
 		Individu i0 = group[40];
 		i0.infected = true;
-		i0.dayOfContamination=0;
-		i0.age = 40;  // multiple de 4 = isWorking
-		i0.howInfected = WORK;
-		
+		i0.dayOfContamination = 0;
+		i0.age = 40; // multiple de 4 = isWorking
+		i0.howInfected = HowInfected.BYWORK;
+
 		Individu i1 = group[20];
 		i1.infected = true;
-		i1.dayOfContamination=0;
+		i1.dayOfContamination = 0;
 		i1.age = 12; // multiple de 4 = isWorking
-		i1.howInfected = SCHOOL;
-		
+		i1.howInfected = HowInfected.BYSCHOOL;
+
 	}
 	
 	public void run(int ndays) {
@@ -126,7 +127,7 @@ public class Simu {
 			int infectedByWork = 0;
 			int infectedBySchool = 0;
 			int infectedByFriend = 0;
-			
+
 			int newCases = 0;
 			for (int i=0; i < group.length; i++) {
 				Individu ind = group[i];
@@ -139,13 +140,13 @@ public class Simu {
 				if (ind.isContagious()) {
 					infecteds++;
 					switch (ind.howInfected) {
-					case WORK: infectedByWork++;
+					case BYWORK: infectedByWork++;
 						break;
-					case FAMILY: infectedByFamily++;
+					case BYFAMILY: infectedByFamily++;
 						break;
-					case SCHOOL: infectedBySchool++;
+					case BYSCHOOL: infectedBySchool++;
 						break;						
-					case FRIEND: infectedByFriend++;
+					case BYFRIEND: infectedByFriend++;
 						break;						
 					}
 					
@@ -179,109 +180,112 @@ public class Simu {
 		int dayOfWeek = day % 7;
 
 		if (dayOfWeek < 5) {
-			// en semaine
+			// week days
 			if (ind.isContagious()) {
-				if (ind.isWorking() && !ind.isDetected(day) && !isTotalContainment(day)) { //si détecté malade on travaille pas, si guéri on retravaille
+				if (ind.isWorking() && !ind.isDetected(day) && !isTotalContainment(day)) { // si détecté malade on ne travaille pas, si guéri on retravaille
 					// Enterprise
 					if (!ind.isStudent()) {
 						for (Individu colleague : enterprises[ind.enterprise].colleagues) {
-							if (!colleague.equals(ind) && colleague.alive && !colleague.isDetected(day)) { // si détecté malade on travaille pas
-								double x = rnd.nextDouble();								
-								if (isContainment(day)) x /= 3;		// effectif reduit en entreprise								
+							if (colleague != ind && colleague.alive && !colleague.isDetected(day)) { // si détecté malade on ne travaille pas
+								double x = rnd.nextDouble();
+								if (isContainment(day))
+									x /= 3; // staff is reduced so rate is reduced
 								if (x < EnterpriseTransmissionRate) {
-									if (!colleague.infected && !colleague.immunized) {
-										colleague.dayOfContamination  = day;
+									if (colleague.isInfectable()) {
+										colleague.dayOfContamination = day;
 										colleague.infected = true;
-										colleague.howInfected = WORK;
+										colleague.howInfected = HowInfected.BYWORK;
 										newCases++;
 									}
 								}
-								
+
 							}
 						}
 					}
 					// School
-					if (ind.isStudent() && !isContainment(day)) {  // en confinement y a pas école
+					if (ind.isStudent() && !isContainment(day)) { // en confinement y a pas école
 						for (Individu student : schools[ind.school].students) {
-							if (!student.equals(ind) && student.alive) {
+							if (student != ind && student.alive) {
 								double x = rnd.nextDouble();
 								if (x < SchoolTransmissionRate) {
-									if (!student.infected && !student.immunized) {
-										student.dayOfContamination  = day;
+									if (student.isInfectable()) {
+										student.dayOfContamination = day;
 										student.infected = true;
-										student.howInfected = SCHOOL;
+										student.howInfected = HowInfected.BYSCHOOL;
 										newCases++;
 									}
 								}
 							}
 						}
-						
+
 					}
 				}
 				// family
 				for (Individu member : families[ind.family].members) {
-					if (!member.equals(ind)) {
+					if (member != ind) {
 						double x = rnd.nextDouble();
-						if (isContainment(day)) x *= 3; // le confinement augmente la contamination en famille
-						if (x < FamilyTransmissionRate) {
-							if (!member.infected && !member.immunized) {
-								member.dayOfContamination  = day;
-								member.infected = true;
-								member.howInfected = FAMILY;
-								newCases++;
-							}
-						}
-					}
-				}				
-			} // alive 
-
-		} else {
-			// week-end
-			// family
-			if (ind.isContagious()) { 
-				for (Individu member : families[ind.family].members) {
-					if (!member.equals(ind)) {
-						double x = rnd.nextDouble();
-						if (isContainment(day)) x *= 3; // le confinement augmente la contamination en famille
+						if (isContainment(day))
+							x *= 3; // containment increase contamination inside family
 						if (x < FamilyTransmissionRate) {
 							if (member.isInfectable()) {
 								member.dayOfContamination = day;
 								member.infected = true;
-								member.howInfected = FAMILY;
+								member.howInfected = HowInfected.BYFAMILY;
 								newCases++;
 							}
 						}
 					}
 				}
-				//week-end Friends
+			} // alive
+
+		} else {
+			// week-end
+			// family
+			if (ind.isContagious()) {
+				for (Individu member : families[ind.family].members) {
+					if (member != ind) {
+						double x = rnd.nextDouble();
+						if (isContainment(day))
+							x *= 3; // containment increase contamination inside family
+						if (x < FamilyTransmissionRate) {
+							if (member.isInfectable()) {
+								member.dayOfContamination = day;
+								member.infected = true;
+								member.howInfected = HowInfected.BYFAMILY;
+								newCases++;
+							}
+						}
+					}
+				}
+				// week-end Friends
 				if (!isContainment(day)) {
 					for (Individu friend : friends[ind.friendGroup].relations) {
-						if (!friend.equals(ind)) {
+						if (friend != ind) {
 							double x = rnd.nextDouble();
 							if (x < FriendsTransmissionRate) {
 								if (friend.isInfectable()) {
 									friend.dayOfContamination = day;
 									friend.infected = true;
-									friend.howInfected = FRIEND;
+									friend.howInfected = HowInfected.BYFRIEND;
 									newCases++;
 								}
 							}
 						}
-						
+
 					}
 				}
 			}
 		}
-		// Death 
+		// Death
 		if (ind.isContagious()) {
-			if (day - ind.dayOfContamination >= DayOfFirstSign) {
+			if (day - ind.dayOfContamination >= DayOfFirstSevereSymptom) {// death comes after Severe symptoms
 				double death = rnd.nextDouble();
-				if (ind.age <= 30) {
+				if (ind.age < Individu.MAXAGESTUDENT) {
 					// youngs
 					if (death < DeathRateYoung) {
 						ind.alive = false;
 					}
-				} else if (ind.age <= 60) {
+				} else if (ind.age < Individu.MINAGESENIOR) {
 					// adults
 					if (death < DeathRateAdult) {
 						ind.alive = false;

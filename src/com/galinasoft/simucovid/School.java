@@ -1,13 +1,14 @@
 package com.galinasoft.simucovid;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
+
 
 public class School {
-	Set<Individu> students;
+	List<Individu> students;
 	
-	public School() {
-		students = new HashSet<Individu>();
+	public School(int initialCapacity) {
+		students = new ArrayList<Individu>(initialCapacity);
 	}
 	
 	public void add(Individu ind) {

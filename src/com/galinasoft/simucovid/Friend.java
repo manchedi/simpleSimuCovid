@@ -1,13 +1,14 @@
 package com.galinasoft.simucovid;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
+
 
 public class Friend {
-	Set<Individu> relations;
+	List<Individu> relations;
 	
-	public Friend() {
-		relations = new HashSet<Individu>();
+	public Friend(int initialCapacity) {
+		relations = new ArrayList<Individu>(initialCapacity);
 	}
 	
 	public void add(Individu ind) {

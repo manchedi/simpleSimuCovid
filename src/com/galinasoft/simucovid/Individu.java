@@ -1,6 +1,8 @@
 package com.galinasoft.simucovid;
 
 public class Individu {
+	final static int MAXAGESTUDENT = 30; // tune it for specify % of young people
+	final static int MINAGESENIOR = 65; // tune it for specify % of young people
 	int age;
 	int school;
 	int enterprise;
@@ -8,7 +10,7 @@ public class Individu {
 	int friendGroup;
 	boolean alive;
 	boolean infected;
-	int howInfected; // 1=family 2=Work; 3=school
+	HowInfected howInfected; // 1=family 2=Work; 3=school
 	boolean immunized;
 	int dayOfContamination; 
 	
@@ -20,7 +22,6 @@ public class Individu {
 		this.friendGroup = friendGroup;
 		this.alive = true;
 		this.infected = false;
-		this.howInfected = 0;
 		this.immunized = false;
 		this.dayOfContamination = -1;
 	}
@@ -30,11 +31,11 @@ public class Individu {
 	}
 	
 	public boolean isSenior() {
-		return age > 64;
+		return age >= MINAGESENIOR;  // don't tune it for specify % of senior people, use
 	}
 	
 	public boolean isStudent() {
-		return age < 30;
+		return age < MAXAGESTUDENT;  
 	}
 	
 	public boolean isContagious() {

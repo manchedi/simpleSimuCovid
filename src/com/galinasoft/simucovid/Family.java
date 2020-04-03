@@ -1,13 +1,14 @@
 package com.galinasoft.simucovid;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
+
 
 public class Family {
-	Set<Individu> members;
+	List<Individu> members;
 	
-	public Family() {
-		members = new HashSet<Individu>();
+	public Family(int initialCapacity) {
+		members = new ArrayList<Individu>(initialCapacity);
 	}
 	
 	public void add(Individu ind) {
