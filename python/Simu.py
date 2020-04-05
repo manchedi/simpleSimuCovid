@@ -146,8 +146,11 @@ class Simu:
 				if not ind.alive: deads += 1
 			
 			totalInfecteds += newCases
-			print("{},{},{},{},{},{},{},{}".format(day, infecteds, immunizeds, deads, infectedByFamily, infectedByWork, infectedBySchool, infectedByFriend, newCases, totalInfecteds))
-			df2 = pd.DataFrame([[day, infecteds, immunizeds, deads, infectedByFamily, infectedByWork, infectedBySchool, infectedByFriend, newCases, totalInfecteds]],columns=["day","infected","immunized","dead","InfectByFamily","InfectByWork","InfectBySchool","InfectByFriend","newCases","totalInfected"])
+			# output csv
+			print(f"{day},{infecteds},{immunizeds},{deads},{infectedByFamily},{infectedByWork},{infectedBySchool},{infectedByFriend},{newCases},{totalInfecteds}")
+			# pandas Dataframe
+			df2 = pd.DataFrame([[day, infecteds, immunizeds, deads, infectedByFamily, infectedByWork, infectedBySchool, infectedByFriend, newCases, totalInfecteds]],
+				columns=["day","infected","immunized","dead","InfectByFamily","InfectByWork","InfectBySchool","InfectByFriend","newCases","totalInfected"])
 			self.df = pd.concat([self.df, df2])
 		
 		# result how many infected
@@ -164,17 +167,27 @@ class Simu:
 		print("Total immunized: {}".format(howManyImmunized))
 		print("Total deads: {}".format(howManyDead))
 
-		plt.plot(self.df['day'], self.df['infected'])
-		plt.plot(self.df['day'], self.df['InfectByFamily'])
-		plt.plot(self.df['day'], self.df['InfectByWork'])
-		plt.plot(self.df['day'], self.df['InfectBySchool'])
-		plt.plot(self.df['day'], self.df['InfectByFriend'])
-		plt.plot(self.df['day'], self.df['immunized'])
+		fig, (ax1, ax2) = plt.subplots(2, sharex=False, sharey=False, figsize=(5, 8))
+		fig.suptitle('Covid-19 Simulation 30d@4 containment')
+		# ax1.subplot(111)
+		ax1.plot(self.df['day'], self.df['infected'])
+		ax1.plot(self.df['day'], self.df['InfectByFamily'])
+		ax1.plot(self.df['day'], self.df['InfectByWork'])
+		ax1.plot(self.df['day'], self.df['InfectBySchool'])
+		ax1.plot(self.df['day'], self.df['InfectByFriend'])
+		ax1.plot(self.df['day'], self.df['immunized'])
+		ax1.set(xlabel='days', ylabel='individuals')
 		plt.xlabel('days')
-		plt.legend(['infected','byFamily','byWork','bySchool','byFriend','immunized'])
+		ax1.legend(['infected','byFamily','byWork','bySchool','byFriend','immunized'])
+		# plt.subplot(112)
+		ax2.plot(self.df['totalInfected'], self.df['newCases'], label='infected')
+		ax2.set(xscale='log')
+		ax2.set(yscale='log')
+		ax2.legend()
+		ax2.set(xlabel='total Infected (log)', ylabel='new cases (log)')
 		plt.show()
-		
-		print (self.df.shape)
+
+
 	
 	def newCasesOfADay(self, day, ind):
 		newCases = 0
@@ -187,7 +200,7 @@ class Simu:
 					# Enterprise
 					if not ind.isStudent():
 						for colleague in self.enterprises[ind.enterprise].colleagues:
-							if colleague != ind and colleague.alive and not colleague.isDetected(day): # si detecte malade on travaille pas
+							if colleague is not ind and colleague.alive and not colleague.isDetected(day): # si detecte malade on travaille pas
 								x = random.random()								
 								if self.isContainment(day): x /= 3	# effectif reduit en entreprise
 								if x < self.EnterpriseTransmissionRate:
@@ -201,7 +214,7 @@ class Simu:
 					# School
 					if ind.isStudent() and not self.isContainment(day):  # en confinement y a pas �cole
 						for student in self.schools[ind.school].students:
-							if student != ind and student.alive:
+							if student is not ind and student.alive:
 								x = random.random()
 								if x < self.SchoolTransmissionRate:
 									if not student.infected and not student.immunized:
@@ -213,7 +226,7 @@ class Simu:
 				
 				# family
 				for member in self.families[ind.family].members:
-					if member != ind:
+					if member is not ind:
 						x = random.random()
 						if self.isContainment(day): x *= 3 # containment increase contamination inside family
 						if x < self.FamilyTransmissionRate:
@@ -228,7 +241,7 @@ class Simu:
 			# family
 			if ind.isContagious():
 				for member in self.families[ind.family].members:
-					if member != ind:
+					if member is not ind:
 						x = random.random()
 						if self.isContainment(day): x *= 3 # containment increase contamination inside family
 						if x < self.FamilyTransmissionRate:
@@ -241,7 +254,7 @@ class Simu:
 				#week-end Friends
 				if not self.isContainment(day):
 					for friend in self.friends[ind.friendGroup].relations:
-						if friend != ind:
+						if friend is not ind:
 							x = random.random()
 							if x < self.FriendsTransmissionRate:
 								if friend.isInfectable():
