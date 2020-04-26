@@ -3,7 +3,7 @@ package com.galinasoft.simucovid;
 public class Individu {
 	final static int MAXAGESTUDENT = 30; // tune it for specify % of young people
 	final static int MINAGESENIOR = 65; // tune it for specify % of young people
-	int age;
+	short age;
 	int school;
 	int enterprise;
 	int family;
@@ -12,9 +12,10 @@ public class Individu {
 	boolean infected;
 	HowInfected howInfected; // 1=family 2=Work; 3=school
 	boolean immunized;
-	int dayOfContamination; 
+	short dayOfContamination; 
+	short virusGeneration;
 	
-	public Individu(int age, int school, int work, int family, int friendGroup) {
+	public Individu(short age, int school, int work, int family, int friendGroup) {
 		this.age = age;
 		this.school = school;
 		this.enterprise = work;
@@ -24,6 +25,7 @@ public class Individu {
 		this.infected = false;
 		this.immunized = false;
 		this.dayOfContamination = -1;
+		this.virusGeneration = 0;
 	}
 	
 	public boolean isWorking() { // student or adult not senior
@@ -39,11 +41,11 @@ public class Individu {
 	}
 	
 	public boolean isContagious() {
-		return (alive && infected && !immunized);
+		return (infected && !immunized && alive);
 	}
 	
 	public boolean isInfectable() {
-		return alive && !infected && !immunized;
+		return !infected && !immunized && alive;
 	}
 	public boolean isDetected(int day) {
 		return (alive && infected && (day - dayOfContamination) > Simu.DayOfFirstSign);

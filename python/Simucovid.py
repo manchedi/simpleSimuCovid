@@ -18,7 +18,7 @@ def main():
 	simu.fillGroup()
 	simu.initFirstCases()
 	
-	simu.run(90)
+	simu.run(120)
 
 	
 class Simu:
@@ -26,11 +26,11 @@ class Simu:
 	DayOfFirstSign = 5
 	
 	def __init__ (self):
-		self.SIZE = 1000
+		self.SIZE = 100000
 		self.FAMILYSIZE = 4 # 4 person per family
 		self.ENTERPRISESIZE = 20 # 20 workers per enterprise
 		self.N_ENTERPRISE = int(self.SIZE/self.ENTERPRISESIZE)
-		self.SCHOOLSIZE = 200 # 200 students per school
+		self.SCHOOLSIZE = 100 # 200 students per school
 		self.N_SCHOOL = int(self.SIZE/self.SCHOOLSIZE)
 		self.FRIENDGROUPSIZE = 4 # 4 friends per individual
 		self.N_FRIENDGROUP = int(self.SIZE/self.FRIENDGROUPSIZE)
@@ -44,18 +44,18 @@ class Simu:
 		self.DeathRateSenior = 0.0039
 		self.DayOfFirstSevereSymptom = 9
 		self.RECOVERYTIME = 21
-		self.FirstDayOfContainment = 4
-		self.DurationOfContainment = 30
-		self.FirstDayOfTotalContainment = 140
-		self.DurationOfTotalContainment = 10
-		
+		self.FirstDayOfContainment = 18
+		self.DurationOfContainment = 45
+		self.FirstDayOfTotalContainment = 100
+		self.DurationOfTotalContainment = 20
+
 		self.group = []
 		self.families = []
 		self.enterprises = []
 		self.schools = []
 		self.friends = []
 	
-		self.df = pd.DataFrame(columns=["day","infected","immunized","dead","InfectByFamily","InfectByWork","InfectBySchool","InfectByFriend","newCases","totalInfected"], dtype=np.int32)
+		self.df = pd.DataFrame(columns=["day","infected","immunized","dead","InfectByFamily","InfectByWork","InfectBySchool","InfectByFriend","newCases","totalInfected","newDeads"], dtype=np.int32)
 	
 	def createFamilies(self):
 		for f in range(int(self.SIZE/self.FAMILYSIZE)):
@@ -73,8 +73,7 @@ class Simu:
 		for f in range(self.N_FRIENDGROUP):
 			self.friends.append(Friend())
 	
-	def fillGroup(self):
-		
+	def fillGroup(self):	
 		for i in range(self.SIZE):
 			age = random.randrange(0, self.MAXAGE) + 1
 			school = random.randrange(0, self.N_SCHOOL)
@@ -88,8 +87,6 @@ class Simu:
 				self.schools[school].add(self.group[i])
 			elif self.group[i].isWorking():
 				self.enterprises[work].add(self.group[i])
-			
-
 	
 	def initFirstCases(self):
 		i0 = self.group[40]
@@ -121,10 +118,14 @@ class Simu:
 			infectedBySchool = 0
 			infectedByFriend = 0
 
-			newCases = 0
+			newInfecteds = 0;
+			newDeads = 0;
+
 			for i in range(len(self.group)):
 				ind = self.group[i]
-				newCases += self.newCasesOfADay(day, ind)	
+				newCases, new_Deads = self.IndividualPropagationByDay(day, ind)	
+				newInfecteds += newCases
+				newDeads += new_Deads
 				# healing
 				if ind.infected and (day > (ind.dayOfContamination + self.RECOVERYTIME)):
 					ind.infected = False
@@ -145,12 +146,12 @@ class Simu:
 					immunizeds += 1
 				if not ind.alive: deads += 1
 			
-			totalInfecteds += newCases
+			totalInfecteds += newInfecteds
 			# output csv
-			print(f"{day},{infecteds},{immunizeds},{deads},{infectedByFamily},{infectedByWork},{infectedBySchool},{infectedByFriend},{newCases},{totalInfecteds}")
+			print(f"{day},{infecteds},{immunizeds},{deads},{infectedByFamily},{infectedByWork},{infectedBySchool},{infectedByFriend},{newInfecteds},{totalInfecteds},{newDeads}")
 			# pandas Dataframe
-			df2 = pd.DataFrame([[day, infecteds, immunizeds, deads, infectedByFamily, infectedByWork, infectedBySchool, infectedByFriend, newCases, totalInfecteds]],
-				columns=["day","infected","immunized","dead","InfectByFamily","InfectByWork","InfectBySchool","InfectByFriend","newCases","totalInfected"])
+			df2 = pd.DataFrame([[day, infecteds, immunizeds, deads, infectedByFamily, infectedByWork, infectedBySchool, infectedByFriend, newInfecteds, totalInfecteds, newDeads]],
+				columns=["day","infected","immunized","dead","InfectByFamily","InfectByWork","InfectBySchool","InfectByFriend","newCases","totalInfected","newDeads"])
 			self.df = pd.concat([self.df, df2])
 		
 		# result how many infected
@@ -167,30 +168,43 @@ class Simu:
 		print("Total immunized: {}".format(howManyImmunized))
 		print("Total deads: {}".format(howManyDead))
 
-		fig, (ax1, ax2) = plt.subplots(2, sharex=False, sharey=False, figsize=(5, 8))
-		fig.suptitle('Covid-19 Simulation 30d@4 containment')
+		fig, axs = plt.subplots(2, 2, sharex=False, sharey=False, figsize=(10, 10))
+		fig.suptitle(f"Covid-19 Simulation {self.DurationOfContainment}d@{self.FirstDayOfContainment} containment")
 		# ax1.subplot(111)
-		ax1.plot(self.df['day'], self.df['infected'])
-		ax1.plot(self.df['day'], self.df['InfectByFamily'])
-		ax1.plot(self.df['day'], self.df['InfectByWork'])
-		ax1.plot(self.df['day'], self.df['InfectBySchool'])
-		ax1.plot(self.df['day'], self.df['InfectByFriend'])
-		ax1.plot(self.df['day'], self.df['immunized'])
-		ax1.set(xlabel='days', ylabel='individuals')
-		plt.xlabel('days')
-		ax1.legend(['infected','byFamily','byWork','bySchool','byFriend','immunized'])
+		axs[0,0].plot(self.df['day'], self.df['infected'])
+		axs[0,0].plot(self.df['day'], self.df['InfectByFamily'])
+		axs[0,0].plot(self.df['day'], self.df['InfectByWork'])
+		axs[0,0].plot(self.df['day'], self.df['InfectBySchool'])
+		axs[0,0].plot(self.df['day'], self.df['InfectByFriend'])
+		axs[0,0].plot(self.df['day'], self.df['immunized'])
+		axs[0,0].set(xlabel='days', ylabel='individuals')
+		axs[0,0].legend(['infected','byFamily','byWork','bySchool','byFriend','immunized'])
+
+		axs[0,1].plot(self.df['day'], self.df['infected'])
+		axs[0,1].plot(self.df['day'], self.df['dead'])
+		axs[0,1].set(xlabel='days', ylabel='individuals')
+		axs[0,1].legend(['infected','dead'])
+
 		# plt.subplot(112)
-		ax2.plot(self.df['totalInfected'], self.df['newCases'], label='infected')
-		ax2.set(xscale='log')
-		ax2.set(yscale='log')
-		ax2.legend()
-		ax2.set(xlabel='total Infected (log)', ylabel='new cases (log)')
+		axs[1,0].plot(self.df['totalInfected'], self.df['newCases'], label='infected')
+		axs[1,0].set(xscale='log')
+		axs[1,0].set(yscale='log')
+		axs[1,0].legend()
+		axs[1,0].set(xlabel='total Infected (log)', ylabel='new cases (log)')
+		
+		axs[1,1].plot(self.df['dead'], self.df['newDeads'], label='dead')
+		axs[1,1].set(xscale='log')
+		axs[1,1].set(yscale='log')
+		axs[1,1].legend()
+		axs[1,1].set(xlabel='total deads (log)', ylabel='new deads (log)')
+		
 		plt.show()
 
 
 	
-	def newCasesOfADay(self, day, ind):
+	def IndividualPropagationByDay(self, day, ind):
 		newCases = 0
+		newDeads = 0
 		dayOfWeek = day % 7
 
 		if dayOfWeek < 5:
@@ -267,21 +281,24 @@ class Simu:
 		if ind.isContagious():
 			if day - ind.dayOfContamination >= self.DayOfFirstSevereSymptom: # death comes after Severe symptoms
 				death = random.random()
-				if ind.age <= 30:
+				if ind.age < Individu.MAXAGESTUDENT:
 					# youngs
 					if death < self.DeathRateYoung:
 						ind.alive = False
-				elif ind.age <= 60:
+						newDeads += 1
+				elif ind.age < Individu.MINAGESENIOR:
 					# adults
 					if death < self.DeathRateAdult:
 						ind.alive = False
+						newDeads += 1
 				else:
 					# seniors
 					if death < self.DeathRateSenior:
 						ind.alive = False
+						newDeads += 1
 
 
-		return newCases
+		return newCases, newDeads
 
 	
 	def isContainment(self, day):

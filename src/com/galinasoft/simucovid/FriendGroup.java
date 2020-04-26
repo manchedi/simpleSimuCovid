@@ -4,10 +4,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 
-public class Friend {
+public class FriendGroup {
 	List<Individu> relations;
 	
-	public Friend(int initialCapacity) {
+	public FriendGroup(int initialCapacity) {
 		relations = new ArrayList<Individu>(initialCapacity);
 	}
 	

@@ -1,39 +1,45 @@
 package com.galinasoft.simucovid;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.Random;
 
 public class Simu {
 	// how is infected
 	
-	final int SIZE= 1000_000;
+	final int SIZE= 1_000_000;
 	final int FAMILYSIZE = 4; // 4 person per family
 	final int ENTERPRISESIZE = 20; // 20 workers per enterprise
 	final int N_ENTERPRISE = SIZE/ENTERPRISESIZE; 
 	final int SCHOOLSIZE = 200; // 200 students per school
 	final int N_SCHOOL = SIZE/SCHOOLSIZE; 
 	final int FRIENDGROUPSIZE = 4; // 4 friends per individual
-	final int N_FRIENDGROUP = SIZE/FRIENDGROUPSIZE;   
-	final double FamilyTransmissionRate = 0.05;
-	final double EnterpriseTransmissionRate = 0.01;
-	final double SchoolTransmissionRate = 0.02;
-	final double FriendsTransmissionRate = 0.05;
+	final int N_FRIENDGROUP = SIZE/FRIENDGROUPSIZE; 
+	final double globalVirusRate = 0.55;
+	final double FamilyTransmissionRate = 0.03 * globalVirusRate;
+	final double EnterpriseTransmissionRate = 0.01 * globalVirusRate;
+	final double SchoolTransmissionRate = 0.02 * globalVirusRate;
+	final double FriendsTransmissionRate = 0.03 * globalVirusRate;
 	final int MAXAGE = 80;  // use this parameter to tune % of senior (MAXAGE - 65)/ (MAXAGE)
 	final double DeathRateYoung = 0.0002;
-	final double DeathRateAdult = 0.0012;
+	final double DeathRateAdult = 0.0008;
 	final double DeathRateSenior = 0.0039;
-	final static int DayOfFirstSign = 5;
+	final static int DayOfFirstSign = 8;
 	final int DayOfFirstSevereSymptom = 9;
-	final int RECOVERYTIME = 21;
-	final int FirstDayOfContainment = 4;
-	final int DurationOfContainment = 30;
-	final int FirstDayOfTotalContainment = 140;
-	final int DurationOfTotalContainment = 10;
+	final int RECOVERYTIME = 28;
+	final int FirstDayOfContainment = 15;
+	final int DurationOfContainment = 60;
+	final int FirstDayOfTotalContainment = 999;
+	final int DurationOfTotalContainment = 20;
 	
 	Individu[] group;
 	Family[] families;
 	Enterprise[] enterprises;
 	School[] schools;
-	Friend[] friends;
+	FriendGroup[] friendGroups;
+	int newInfecteds = 0;
+	int newDeads = 0;
 	
 	Random rnd = new Random(42);
 	
@@ -42,11 +48,10 @@ public class Simu {
 		this.families = new Family[SIZE/FAMILYSIZE];
 		this.enterprises = new Enterprise[N_ENTERPRISE];
 		this.schools = new School[N_SCHOOL];
-		this.friends = new Friend[N_FRIENDGROUP];
+		this.friendGroups = new FriendGroup[N_FRIENDGROUP];
 	}
 	
-	public static void main(String[] args) {
-		
+	public static void main(String[] args) {		
 		Simu simu = new Simu();
 		simu.createFamilies();
 		simu.createEnterprises();
@@ -55,12 +60,17 @@ public class Simu {
 		simu.fillGroup();
 		simu.initFirstCases();
 		
-		simu.run(90);
+		try(BufferedWriter bw = new BufferedWriter(new FileWriter("D:\\Agraver\\sk-learn\\covid\\Reqsimu19.csv"));) {
+			simu.run(200, bw);			
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
 	}
 	
 	public void createFamilies() {
 		for(int f=0 ; f< families.length ; f++) {
-			families[f] = new Family(10); // default capacity of ArrayList
+			families[f] = new Family(10); // 10 is default capacity of ArrayList
 		}
 	}
 	public void createEnterprises() {
@@ -69,13 +79,13 @@ public class Simu {
 		}
 	}
 	public void createSchools() {
-		for(int s=0 ; s< schools.length ; s++) {
+		for(int s=0 ; s<schools.length ; s++) {
 			schools[s] = new School(SCHOOLSIZE*2);
 		}
 	}
 	public void createFriends() {
-		for(int f=0 ; f< friends.length ; f++) {
-			friends[f] = new Friend(10); // default capacity of ArrayList
+		for(int f=0 ; f< friendGroups.length ; f++) {
+			friendGroups[f] = new FriendGroup(10); // default capacity of ArrayList
 		}
 	}
 	
@@ -87,9 +97,9 @@ public class Simu {
 			int work = rnd.nextInt(N_ENTERPRISE);
 			int family = rnd.nextInt((int)(SIZE/FAMILYSIZE));
 			int friendGroup = rnd.nextInt(N_FRIENDGROUP);
-			group[i] = new Individu(age, school, work, family,friendGroup);
+			group[i] = new Individu((short)age, school, work, family, friendGroup);
 			families[family].add(group[i]);
-			friends[friendGroup].add(group[i]);
+			friendGroups[friendGroup].add(group[i]);
 			if (group[i].isStudent()) {
 				schools[school].add(group[i]);
 			} else if (group[i].isWorking()) {
@@ -101,25 +111,53 @@ public class Simu {
 	private void initFirstCases() {
 		Individu i0 = group[40];
 		i0.infected = true;
+		i0.virusGeneration = 1;
 		i0.dayOfContamination = 0;
 		i0.age = 40; // multiple de 4 = isWorking
 		i0.howInfected = HowInfected.BYWORK;
 
-		Individu i1 = group[20];
+		Individu i1 = group[20];   
 		i1.infected = true;
+		i1.virusGeneration = 1;
 		i1.dayOfContamination = 0;
 		i1.age = 12; // multiple de 4 = isWorking
 		i1.howInfected = HowInfected.BYSCHOOL;
+		
+		Individu i2 = group[23];   // 20 years old
+		i2.infected = true;
+		i2.dayOfContamination = 0;
+		i2.age = 23; // multiple de 4 = isWorking
+		i2.howInfected = HowInfected.BYSCHOOL;
+		
+		Individu i3 = group[70];   // 20 years old
+		i3.infected = true;
+		i3.dayOfContamination = 0;
+		i3.age = 70; // multiple de 4 = isWorking
+		i3.howInfected = HowInfected.BYFAMILY;
+		
+		Individu i5 = group[79];   // 20 years old
+		i5.infected = true;
+		i5.dayOfContamination = 0;
+		i5.age = 8; // multiple de 4 = isWorking
+		i5.howInfected = HowInfected.BYFAMILY;
+		
+		Individu i4 = group[75];   // 20 years old
+		i4.infected = true;
+		i4.dayOfContamination = 0;
+		i4.age = 52; // multiple de 4 = isWorking
+		i4.howInfected = HowInfected.BYFAMILY;
 
 	}
 	
-	public void run(int ndays) {
-		System.out.println("\"day\",\"infected\",\"immunized\",\"dead\",\"InfectByFamily\",\"InfectByWork\",\"InfectBySchool\",\"InfectByFriend\",\"newCases\",\"totalInfected\"");
+	public void run(int ndays, BufferedWriter bw) throws IOException {
+		
+		System.out.println("\"day\",\"infected\",\"immunized\",\"dead\",\"InfectByFamily\",\"InfectByWork\",\"InfectBySchool\",\"InfectByFriend\",\"newCases\",\"totalInfected\",\"newDeads\"");
+		bw.write("\"day\",\"infected\",\"immunized\",\"dead\",\"InfectByFamily\",\"InfectByWork\",\"InfectBySchool\",\"InfectByFriend\",\"newCases\",\"totalInfected\",\"newDeads\"\n");
+
 		int totalInfecteds = 0;
 		
 		// every day
-		for (int day=0 ; day<ndays ; day++) {
-			// every person
+		for (short day=0 ; day<ndays ; day++) {
 			int infecteds = 0;
 			int immunizeds = 0;
 			int deads = 0;
@@ -127,11 +165,15 @@ public class Simu {
 			int infectedByWork = 0;
 			int infectedBySchool = 0;
 			int infectedByFriend = 0;
-
-			int newCases = 0;
-			for (int i=0; i < group.length; i++) {
-				Individu ind = group[i];
-				newCases += newCasesOfADay(day, ind);	
+			
+			newInfecteds = 0;
+			newDeads = 0;
+			
+			// every person			
+			for (Individu ind : group) {
+				// contamination
+				IndividualPropagationByDay(day, ind);
+				
 				// healing
 				if (ind.infected && day > ind.dayOfContamination + RECOVERYTIME) {
 					ind.infected = false;
@@ -148,35 +190,53 @@ public class Simu {
 						break;						
 					case BYFRIEND: infectedByFriend++;
 						break;						
-					}
-					
+					}					
 				}
 				if (ind.alive && ind.immunized) immunizeds++;
 				if (!ind.alive) deads++;
 			}
-			totalInfecteds += newCases;
-			//System.out.println("day "+ day + " infecteds: " + infecteds + " immunized: " + immunizeds + " deads: " + deads );
-			System.out.println(day + "," + infecteds + "," + immunizeds + "," + deads + "," + infectedByFamily + "," + infectedByWork + "," + infectedBySchool + "," + infectedByFriend + "," + newCases + ',' + totalInfecteds );
+			totalInfecteds += newInfecteds;
+			System.out.println(day + "," + infecteds + "," + immunizeds + "," + deads + "," + infectedByFamily + "," + infectedByWork + "," + infectedBySchool + "," + infectedByFriend + "," + newInfecteds + ',' + totalInfecteds + "," + newDeads );
+			bw.write(day + "," + infecteds + "," + immunizeds + "," + deads + "," + infectedByFamily + "," + infectedByWork + "," + infectedBySchool + "," + infectedByFriend + "," + newInfecteds + ',' + totalInfecteds + "," + newDeads + "\n");
 		}
 		
 		// result how many infected
 		int howManyInfected = 0;
 		int howManyImmunized = 0;
 		int howManyDead = 0;
-		for (int i=0; i < group.length; i++) {
-			Individu ind = group[i];
+		int InfecByVirusGeneration[] = new int[102];
+		for (Individu ind : group) {
 			if (ind.isContagious()) howManyInfected++;
 			if (ind.alive && ind.immunized) howManyImmunized++;
 			if (!ind.alive) howManyDead++;
+			if (ind.infected || ind.immunized) {
+				if (ind.virusGeneration < 101) {
+					InfecByVirusGeneration[ind.virusGeneration]++;
+				} else {
+					InfecByVirusGeneration[101]++;	
+				}
+			}
 		}
 		System.out.println("Total infected : " + howManyInfected );
-		System.out.println("Total immunized: " + howManyImmunized);
-		System.out.println("Total deads: " + howManyDead);
+		//System.out.println("Total immunized: " + howManyImmunized);
+		//System.out.println("Total deads: " + howManyDead);
+		for (int i=0 ; i<102 ; i++) {
+			System.out.println("infected by generation " + i +  " is " + InfecByVirusGeneration[i]);
+		}
+		
+		for (int i=1 ; i < 20; i++) {
+			System.out.println(i + " " + virusAttenuation(i));
+		}
+		
+		try {
+			bw.close();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 	
 	
-	public int newCasesOfADay(int day, Individu ind) {
-		int newCases = 0;
+	public void IndividualPropagationByDay(short day, Individu ind) {
 		int dayOfWeek = day % 7;
 
 		if (dayOfWeek < 5) {
@@ -186,34 +246,33 @@ public class Simu {
 					// Enterprise
 					if (!ind.isStudent()) {
 						for (Individu colleague : enterprises[ind.enterprise].colleagues) {
-							if (colleague != ind && colleague.alive && !colleague.isDetected(day)) { // si détecté malade on ne travaille pas
+							if (colleague.isInfectable()) { // si détecté malade on ne travaille pas
 								double x = rnd.nextDouble();
-								if (isContainment(day))
-									x /= 3; // staff is reduced so rate is reduced
+								if (isContainment(day)) x /= 3.0; // staff is reduced so rate is reduced
+								x = x / virusAttenuation(ind.virusGeneration);   // virus mutability decrease propagation
 								if (x < EnterpriseTransmissionRate) {
-									if (colleague.isInfectable()) {
-										colleague.dayOfContamination = day;
-										colleague.infected = true;
-										colleague.howInfected = HowInfected.BYWORK;
-										newCases++;
-									}
+									colleague.dayOfContamination = day;
+									colleague.infected = true;
+									colleague.virusGeneration = (short)(ind.virusGeneration + 1);
+									colleague.howInfected = HowInfected.BYWORK;
+									newInfecteds++;
 								}
 
 							}
 						}
 					}
 					// School
-					if (ind.isStudent() && !isContainment(day)) { // en confinement y a pas école
+					if (ind.isStudent() && !isContainment(day) && !isTotalContainment(day)) { // en confinement y a pas école
 						for (Individu student : schools[ind.school].students) {
-							if (student != ind && student.alive) {
+							if (student.isInfectable()) { // ind is not infectable so student != ind
 								double x = rnd.nextDouble();
+								x = x / virusAttenuation(ind.virusGeneration);   // virus mutability decrease propagation
 								if (x < SchoolTransmissionRate) {
-									if (student.isInfectable()) {
-										student.dayOfContamination = day;
-										student.infected = true;
-										student.howInfected = HowInfected.BYSCHOOL;
-										newCases++;
-									}
+									student.dayOfContamination = day;
+									student.infected = true;
+									student.virusGeneration = (short)(ind.virusGeneration + 1);
+									student.howInfected = HowInfected.BYSCHOOL;
+									newInfecteds++;
 								}
 							}
 						}
@@ -222,17 +281,16 @@ public class Simu {
 				}
 				// family
 				for (Individu member : families[ind.family].members) {
-					if (member != ind) {
+					if (member.isInfectable()) {
 						double x = rnd.nextDouble();
-						if (isContainment(day))
-							x *= 3; // containment increase contamination inside family
+						if (isContainment(day)) x /= 3; // containment increase contamination inside family						
+						x = x / virusAttenuation(ind.virusGeneration);   // virus mutability decrease propagation
 						if (x < FamilyTransmissionRate) {
-							if (member.isInfectable()) {
-								member.dayOfContamination = day;
-								member.infected = true;
-								member.howInfected = HowInfected.BYFAMILY;
-								newCases++;
-							}
+							member.dayOfContamination = day;
+							member.infected = true;
+							member.virusGeneration = (short)(ind.virusGeneration + 1);
+							member.howInfected = HowInfected.BYFAMILY;
+							newInfecteds++;
 						}
 					}
 				}
@@ -243,32 +301,31 @@ public class Simu {
 			// family
 			if (ind.isContagious()) {
 				for (Individu member : families[ind.family].members) {
-					if (member != ind) {
+					if (member.isInfectable()) {
 						double x = rnd.nextDouble();
-						if (isContainment(day))
-							x *= 3; // containment increase contamination inside family
+						if (isContainment(day))	x /= 3; // containment increase contamination inside family
+						x = x / virusAttenuation(ind.virusGeneration);   // virus mutability decrease propagation
 						if (x < FamilyTransmissionRate) {
-							if (member.isInfectable()) {
-								member.dayOfContamination = day;
-								member.infected = true;
-								member.howInfected = HowInfected.BYFAMILY;
-								newCases++;
-							}
+							member.dayOfContamination = day;
+							member.infected = true;
+							member.virusGeneration = (short)(ind.virusGeneration + 1);
+							member.howInfected = HowInfected.BYFAMILY;
+							newInfecteds++;
 						}
 					}
 				}
 				// week-end Friends
 				if (!isContainment(day)) {
-					for (Individu friend : friends[ind.friendGroup].relations) {
-						if (friend != ind) {
+					for (Individu friend : friendGroups[ind.friendGroup].relations) {
+						if (ind.isInfectable()) {
 							double x = rnd.nextDouble();
+							x = x / virusAttenuation(ind.virusGeneration);   // virus mutability decrease propagation
 							if (x < FriendsTransmissionRate) {
-								if (friend.isInfectable()) {
 									friend.dayOfContamination = day;
 									friend.infected = true;
+									friend.virusGeneration = (short)(ind.virusGeneration + 1);
 									friend.howInfected = HowInfected.BYFRIEND;
-									newCases++;
-								}
+									newInfecteds++;
 							}
 						}
 
@@ -284,21 +341,23 @@ public class Simu {
 					// youngs
 					if (death < DeathRateYoung) {
 						ind.alive = false;
+						newDeads++;
 					}
 				} else if (ind.age < Individu.MINAGESENIOR) {
 					// adults
 					if (death < DeathRateAdult) {
 						ind.alive = false;
+						newDeads++;
 					}
 				} else {
 					// seniors
 					if (death < DeathRateSenior) {
 						ind.alive = false;
+						newDeads++;
 					}
 				}
 			}
 		}
-		return newCases;
 	}
 	
 	private boolean isContainment(int day) {
@@ -306,5 +365,9 @@ public class Simu {
 	}
 	private boolean isTotalContainment(int day) {
 		return day >= FirstDayOfTotalContainment && day <= (FirstDayOfTotalContainment + DurationOfTotalContainment);
+	}
+	
+	private double virusAttenuation(int generation) {
+		return 1.5 - (1.0 / (1.0 + Math.exp(-(generation/10.0))));
 	}
 }

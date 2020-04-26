@@ -1,1 +1,1 @@
-python simu.py
+python Simucovid.py
