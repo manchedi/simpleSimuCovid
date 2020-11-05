@@ -10,6 +10,7 @@ public class Individu {
 	int friendGroup;
 	boolean alive;
 	boolean infected;
+	short howManyInfected;
 	HowInfected howInfected; // 1=family 2=Work; 3=school
 	boolean immunized;
 	short dayOfContamination; 
@@ -26,6 +27,7 @@ public class Individu {
 		this.immunized = false;
 		this.dayOfContamination = -1;
 		this.virusGeneration = 0;
+		this.howManyInfected = 0;
 	}
 	
 	public boolean isWorking() { // student or adult not senior
@@ -40,14 +42,18 @@ public class Individu {
 		return age < MAXAGESTUDENT;  
 	}
 	
-	public boolean isContagious() {
-		return (infected && !immunized && alive);
+	public boolean isContagious(int day) {
+		return (infected && !immunized && alive && ((day - dayOfContamination) > Simu.dayStartOfContagiousness));
+	}
+	
+	public boolean isInfected() {
+		return infected ;
 	}
 	
 	public boolean isInfectable() {
 		return !infected && !immunized && alive;
 	}
 	public boolean isDetected(int day) {
-		return (alive && infected && (day - dayOfContamination) > Simu.DayOfFirstSign);
+		return (alive && infected && (day - dayOfContamination) > Simu.dayOfFirstSign);
 	}
 }
